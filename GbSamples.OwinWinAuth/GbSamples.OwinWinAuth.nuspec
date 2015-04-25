@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<package >
+  <metadata>
+    <id>$id$</id>
+    <version>1.0</version>
+    <title>OWIN Windows Authentication Middleware</title>
+    <authors>AhmadGhaleb</authors>
+    <owners>AhmadGhaleb</owners>
+    <licenseUrl>https://www.apache.org/licenses/LICENSE-2.0</licenseUrl>
+    <projectUrl>https://github.com/ghalebbadran/WinodwsAuthenticationOwinMiddleware</projectUrl>
+    <iconUrl>https://www.google.com/a/ghalebbadran.com/images/logo.gif</iconUrl>
+    <requireLicenseAcceptance>true</requireLicenseAcceptance>
+    <description>OWIN middleware authentication using windows authentication 401 challenge (NTLM)</description>
+    <releaseNotes>Initial version of the package.</releaseNotes>
+    <copyright>Copyright 2015</copyright>
+    <tags>IdentityServer</tags>
+  </metadata>
+</package>
