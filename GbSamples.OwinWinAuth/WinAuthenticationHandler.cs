@@ -57,7 +57,7 @@ namespace GbSamples.OwinWinAuth
 
                     var stateString = Options.StateDataFormat.Protect(state);
 
-                    Response.Redirect(WebUtilities.AddQueryString(Options.CallbackPath.Value, "state", stateString));
+                    Response.Redirect(WebUtilities.AddQueryString(Options.IdentityServerPath + Options.CallbackPath.Value, "state", stateString));
                 }
             }
 
