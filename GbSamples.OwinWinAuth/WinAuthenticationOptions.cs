@@ -15,6 +15,8 @@ namespace GbSamples.OwinWinAuth
 
         public PathString CallbackPath { get; set; }
 
+        public PathString IdentityServerPath { get; set; }
+        
         public string UserName { get; set; }
 
         public string UserId { get; set; }
