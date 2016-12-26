@@ -12,12 +12,12 @@ namespace GbSamples.OwinWinAuth
     {
         public WinAuthenticationMiddleware(OwinMiddleware next, IAppBuilder app, WinAuthenticationOptions options)
             : base(next, options)
-        { 
-            if(string.IsNullOrEmpty(Options.SignInAsAuthenticationType))
+        {
+            if (string.IsNullOrEmpty(Options.SignInAsAuthenticationType))
             {
                 options.SignInAsAuthenticationType = app.GetDefaultSignInAsAuthenticationType();
             }
-            if(options.StateDataFormat == null)
+            if (options.StateDataFormat == null)
             {
                 var dataProtector = app.CreateDataProtector(typeof(WinAuthenticationMiddleware).FullName,
                     options.AuthenticationType);
