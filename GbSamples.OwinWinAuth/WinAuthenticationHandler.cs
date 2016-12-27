@@ -1,93 +1,129 @@
-﻿using System.Security.Claims;
-using System.Threading.Tasks;
+﻿using Microsoft.Owin;
 using Microsoft.Owin.Infrastructure;
 using Microsoft.Owin.Security;
 using Microsoft.Owin.Security.Infrastructure;
+using System.Linq;
+using System.Security.Claims;
+using System.Security.Principal;
+using System.Threading.Tasks;
 
 namespace GbSamples.OwinWinAuth
 {
     // Created by the factory in the WinAuthenticationMiddleware class.
-    class WinAuthenticationHandler : AuthenticationHandler<WinAuthenticationOptions>
+    internal class WinAuthenticationHandler : AuthenticationHandler<WinAuthenticationOptions>
     {
+        private IIdentity _ntlmIdentity;
+
         protected override Task<AuthenticationTicket> AuthenticateCoreAsync()
         {
-            if (Options.CallbackPath.Value == Request.Path.Value)
+            if (!string.IsNullOrEmpty(Request.User.Identity.Name))
             {
-                if (string.IsNullOrEmpty(Context.Request.User.Identity.Name))
+                if (Options.CallbackPath.Value == Request.Path.Value)
                 {
-                    Context.Response.StatusCode = 401;
-                    Options.AlreadySet = false;
-                    return Task.FromResult<AuthenticationTicket>(null);
+                    var properties = Options.StateDataFormat.Unprotect(Request.Query["state"]);
+                    return Task.FromResult(CreateTicket((ClaimsIdentity)Request.User.Identity, properties));
                 }
 
-                var identity = new ClaimsIdentity(Options.SignInAsAuthenticationType);
-
-                identity.AddClaim(new Claim(ClaimTypes.NameIdentifier, Context.Request.User.Identity.Name, null,
-                    Options.AuthenticationType));
-
-                identity.AddClaims((Context.Request.User.Identity as ClaimsIdentity).Claims);
-
-                var properties = Options.StateDataFormat.Unprotect(Request.Query["state"]);
-
-                return Task.FromResult(new AuthenticationTicket(identity, properties));
+                if (HasNTLMAuthHeader(Request.Headers))
+                {
+                    _ntlmIdentity = Request.User.Identity;
+                }
             }
+
             return Task.FromResult<AuthenticationTicket>(null);
+        }
+
+        protected override async Task ApplyResponseCoreAsync()
+        {
+            if (Response.StatusCode == 200 && Options.CallbackPath.Value == Request.Path.Value)
+            {
+                var ticket = await AuthenticateAsync();
+
+                if (ticket != null)
+                {
+                    SignInAndRedirect(ticket);
+                    return;
+                }
+            }
+
+            if (Response.StatusCode == 401 && HasNTLMAuthHeader(Request.Headers) && _ntlmIdentity != null)
+            {
+                var challenge = GetChallenge();
+
+                if (challenge != null)
+                {
+                    var ticket = CreateTicket((ClaimsIdentity)_ntlmIdentity, challenge.Properties);
+                    SignInAndRedirect(ticket);
+                    return;
+                }
+            }
+
+            await base.ApplyResponseCoreAsync();
         }
 
         protected override Task ApplyResponseChallengeAsync()
         {
             if (Response.StatusCode == 401)
             {
-                var challenge = Helper.LookupChallenge(Options.AuthenticationType, Options.AuthenticationMode);
-
-                if (challenge != null)
+                if (HasNegotiateAuthHeader(Request.Headers) && Options.CallbackPath.Value != Request.Path.Value)
                 {
-                    if (Options.AuthenticationType == "Win" && !Options.AlreadySet)
+                    var challenge = GetChallenge();
+
+                    if (challenge != null)
                     {
-                        Options.AlreadySet = true;
-                        return Task.FromResult<object>(null);
+                        var stateString = Options.StateDataFormat.Protect(challenge.Properties);
+                        Response.Redirect(WebUtilities.AddQueryString(Request.PathBase + Options.CallbackPath.Value, "state", stateString));
                     }
-
-                    var state = challenge.Properties;
-
-                    if (string.IsNullOrEmpty(state.RedirectUri))
-                    {
-                        state.RedirectUri = Request.Uri.ToString();
-                    }
-
-                    var stateString = Options.StateDataFormat.Protect(state);
-                    
-                    if (!Options.IdentityServerPath.HasValue) Options.IdentityServerPath = Request.PathBase;
-
-                    Response.Redirect(WebUtilities.AddQueryString(Options.IdentityServerPath + Options.CallbackPath.Value, "state", stateString));
                 }
             }
 
             return Task.FromResult<object>(null);
         }
 
-        public override async Task<bool> InvokeAsync()
+        public override Task<bool> InvokeAsync()
         {
-            if (Options.CallbackPath.HasValue && Options.CallbackPath.Value == Request.Path.Value)
-            {
-                if (string.IsNullOrEmpty(Context.Request.User.Identity.Name))
-                {
-                    Response.StatusCode = 401;
-                    return false;
-                }
+            return Task.FromResult(Options.CallbackPath.Value == Request.Path.Value);
+        }
 
-                var ticket = await AuthenticateAsync();
+        private void SignInAndRedirect(AuthenticationTicket ticket)
+        {
+            Context.Authentication.SignIn(ticket.Properties, ticket.Identity);
+            Response.Redirect(ticket.Properties.RedirectUri);
+        }
 
-                if (ticket != null)
-                {
-                    Context.Authentication.SignIn(ticket.Properties, ticket.Identity);
+        private AuthenticationResponseChallenge GetChallenge()
+        {
+            var challenge = Helper.LookupChallenge(Options.AuthenticationType, Options.AuthenticationMode);
 
-                    Response.Redirect(ticket.Properties.RedirectUri);
+            if (challenge != null)
+                if (string.IsNullOrEmpty(challenge.Properties.RedirectUri))
+                    challenge.Properties.RedirectUri = Request.Uri.ToString();
 
-                    return true;
-                }
-            }
-            return false;
+            return challenge;
+        }
+
+        private AuthenticationTicket CreateTicket(ClaimsIdentity user, AuthenticationProperties props)
+        {
+            var identity = new ClaimsIdentity(Options.SignInAsAuthenticationType);
+
+            identity.AddClaim(new Claim(ClaimTypes.NameIdentifier, user.Name, null, Options.AuthenticationType));
+            identity.AddClaims(user.Claims);
+
+            return new AuthenticationTicket(identity, props);
+        }
+
+        private static bool HasNTLMAuthHeader(IHeaderDictionary headers)
+        {
+            return headers.Any(
+                 h => h.Key.ToLowerInvariant() == "authorization" &&
+                 h.Value[0].ToLowerInvariant().StartsWith("ntlm "));
+        }
+
+        private static bool HasNegotiateAuthHeader(IHeaderDictionary headers)
+        {
+            return headers.Any(
+                 h => h.Key.ToLowerInvariant() == "authorization" &&
+                 h.Value[0].ToLowerInvariant().StartsWith("negotiate"));
         }
     }
 }

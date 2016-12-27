@@ -5,26 +5,26 @@ namespace GbSamples.OwinWinAuth
 {
     public class WinAuthenticationOptions : AuthenticationOptions
     {
+        internal const string DefaultAuthenticationType = "windows";
+
         public WinAuthenticationOptions()
-            : base(Constants.DefaultAuthenticationType)
+            : base(DefaultAuthenticationType)
         {
-            Description.Caption = Constants.DefaultAuthenticationType;
-            CallbackPath = new PathString("/windowsAuth");
+            Caption = DefaultAuthenticationType;
+            CallbackPath = new PathString("/windows-auth");
             AuthenticationMode = AuthenticationMode.Active;
         }
 
         public PathString CallbackPath { get; set; }
 
-        public PathString IdentityServerPath { get; set; }
-        
-        public string UserName { get; set; }
-
-        public string UserId { get; set; }
-
         public string SignInAsAuthenticationType { get; set; }
 
-        public bool AlreadySet { get; set; }
-
         public ISecureDataFormat<AuthenticationProperties> StateDataFormat { get; set; }
+
+        public string Caption
+        {
+            get { return Description.Caption; }
+            set { Description.Caption = value; }
+        }
     }
 }
